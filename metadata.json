@@ -1,0 +1,5 @@
+{
+  "name": "AdGen Agent - Intelligent Video Creator",
+  "description": "A multimodal AI agent powered by Gemini 3 Pro and Veo 3.1 to generate professional marketing videos from scripts and images.",
+  "requestFramePermissions": []
+}
