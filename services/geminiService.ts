@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Chat, Part } from "@google/genai";
 import { VideoConfig } from "../types";
 
@@ -7,7 +8,7 @@ You are AdGen Agent, an expert video marketing director and scriptwriter.
 Your goal is to help users create high-converting marketing videos.
 
 Capabilities:
-1. Analyze images (products, styles) to understand brand identity.
+1. Analyze images (products, styles) and videos to understand brand identity, pacing, and aesthetics.
 2. Generate structured video scripts (Hook -> Body -> CTA).
 3. Refine scripts based on user feedback.
 
@@ -49,18 +50,18 @@ export const initializeChat = () => {
   return chatSession;
 };
 
-export async function* sendMessageStream(message: string, imageBase64?: string) {
+export async function* sendMessageStream(message: string, attachment?: { mimeType: string, data: string }) {
   if (!chatSession) {
     initializeChat();
   }
 
   const parts: Part[] = [];
   
-  if (imageBase64) {
+  if (attachment) {
     parts.push({
       inlineData: {
-        mimeType: 'image/jpeg', // Assuming JPEG for simplicity, or detect from base64 header
-        data: imageBase64,
+        mimeType: attachment.mimeType,
+        data: attachment.data,
       },
     });
   }

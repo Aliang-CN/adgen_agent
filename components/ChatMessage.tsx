@@ -1,3 +1,4 @@
+
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Message } from '../types';
@@ -26,11 +27,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             ? 'bg-slate-800 text-slate-100 rounded-tl-none border border-slate-700' 
             : 'bg-indigo-600 text-white rounded-tr-none'
         }`}>
-          {message.image && (
+          {message.attachment && message.attachment.type === 'image' && (
             <img 
-              src={`data:image/jpeg;base64,${message.image}`} 
+              src={`data:${message.attachment.mimeType};base64,${message.attachment.data}`} 
               alt="User Upload" 
               className="w-full max-w-[200px] h-auto rounded-lg mb-2 object-cover border border-white/20"
+            />
+          )}
+          {message.attachment && message.attachment.type === 'video' && (
+            <video 
+              src={`data:${message.attachment.mimeType};base64,${message.attachment.data}`} 
+              controls
+              className="w-full max-w-[240px] h-auto rounded-lg mb-2 border border-white/20"
             />
           )}
           <div className="prose prose-invert prose-sm max-w-none">

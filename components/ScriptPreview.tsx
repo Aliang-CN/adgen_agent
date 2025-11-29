@@ -1,6 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ScriptData, VideoAspectRatio, GenerationStatus } from '../types';
 import { Play, Film, Loader2, Wand2, RefreshCcw } from 'lucide-react';
+
+interface AutoResizingTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  value: string;
+}
+
+const AutoResizingTextarea: React.FC<AutoResizingTextareaProps> = ({ value, className, ...props }) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      className={`${className} overflow-hidden`}
+      {...props}
+    />
+  );
+};
 
 interface ScriptPreviewProps {
   markdown: string;
@@ -153,7 +177,7 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
            <label className="text-xs font-semibold text-slate-500 uppercase">Visual Style</label>
            <div className="flex items-start gap-2 p-3 bg-indigo-900/20 border border-indigo-500/30 rounded-lg text-indigo-300 text-sm focus-within:ring-1 focus-within:ring-indigo-500/50">
              <Wand2 size={16} className="mt-0.5 flex-shrink-0" />
-             <textarea
+             <AutoResizingTextarea
                value={editableScript.visualStyle}
                onChange={(e) => handleInputChange('visualStyle', e.target.value)}
                rows={1}
@@ -165,7 +189,7 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
         <div className="grid gap-4">
           <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 focus-within:border-indigo-500/50 transition-colors">
             <span className="text-xs font-bold text-emerald-400 uppercase mb-2 block">0:00 - 0:05 • Hook</span>
-            <textarea
+            <AutoResizingTextarea
               value={editableScript.hook}
               onChange={(e) => handleInputChange('hook', e.target.value)}
               placeholder="Generating hook..."
@@ -176,7 +200,7 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
           
           <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 focus-within:border-indigo-500/50 transition-colors">
             <span className="text-xs font-bold text-blue-400 uppercase mb-2 block">0:05 - 0:15 • Body</span>
-            <textarea
+            <AutoResizingTextarea
               value={editableScript.body}
               onChange={(e) => handleInputChange('body', e.target.value)}
               placeholder="Generating body..."
@@ -187,7 +211,7 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
 
           <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 focus-within:border-indigo-500/50 transition-colors">
              <span className="text-xs font-bold text-purple-400 uppercase mb-2 block">0:15 - 0:20 • CTA</span>
-             <textarea
+             <AutoResizingTextarea
               value={editableScript.cta}
               onChange={(e) => handleInputChange('cta', e.target.value)}
               placeholder="Generating CTA..."

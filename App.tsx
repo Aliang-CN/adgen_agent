@@ -1,9 +1,10 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Sparkles, AlertTriangle, Download, RefreshCw, Film } from 'lucide-react';
+import { Send, Image as ImageIcon, Sparkles, AlertTriangle, Download, RefreshCw, Film, Video } from 'lucide-react';
 import ChatMessage from './components/ChatMessage';
 import ScriptPreview from './components/ScriptPreview';
 import { sendMessageStream, generateVeoVideo, checkVeoAuth, promptVeoAuth } from './services/geminiService';
-import { Message, GenerationStatus, VideoAspectRatio } from './types';
+import { Message, GenerationStatus, VideoAspectRatio, Attachment } from './types';
 
 function App() {
   // State
@@ -11,11 +12,11 @@ function App() {
     {
       id: '1',
       role: 'model',
-      content: "Hi! I'm **AdGen**. I can help you create stunning marketing videos.\n\nUpload a product image or describe your idea to get started. I'll write a script and then we can generate a video using **Veo**.",
+      content: "Hi! I'm **AdGen**. I can help you create stunning marketing videos.\n\nUpload a product image or reference video, or describe your idea to get started. I'll write a script and then we can generate a video using **Veo**.",
     }
   ]);
   const [input, setInput] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<Attachment | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>('idle');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -30,17 +31,23 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle Image Upload
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle File Upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        // Remove data URL prefix for API usage if needed, but for rendering we keep it.
-        // For Gemini API we usually need just the base64 data part.
+        // Get the base64 data part
         const base64Data = base64String.split(',')[1];
-        setSelectedImage(base64Data);
+        
+        const type = file.type.startsWith('video/') ? 'video' : 'image';
+        
+        setSelectedMedia({
+          type,
+          mimeType: file.type,
+          data: base64Data
+        });
       };
       reader.readAsDataURL(file);
     }
@@ -48,19 +55,19 @@ function App() {
 
   // Handle Send Message
   const handleSendMessage = async () => {
-    if ((!input.trim() && !selectedImage) || isTyping) return;
+    if ((!input.trim() && !selectedMedia) || isTyping) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: input,
-      image: selectedImage || undefined,
+      attachment: selectedMedia || undefined,
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
-    const currentImage = selectedImage; // Capture for current turn
-    setSelectedImage(null);
+    const currentMedia = selectedMedia; // Capture for current turn
+    setSelectedMedia(null);
     setIsTyping(true);
 
     // Placeholder for AI response
@@ -68,7 +75,10 @@ function App() {
     setMessages(prev => [...prev, { id: botMessageId, role: 'model', content: '', isStreaming: true }]);
 
     try {
-      const stream = sendMessageStream(userMessage.content || "Analyze this image", currentImage || undefined);
+      const prompt = userMessage.content || (currentMedia?.type === 'video' ? "Analyze this video style and content" : "Analyze this image");
+      const attachmentPayload = currentMedia ? { mimeType: currentMedia.mimeType, data: currentMedia.data } : undefined;
+
+      const stream = sendMessageStream(prompt, attachmentPayload);
       
       let fullContent = '';
       
@@ -119,16 +129,18 @@ function App() {
     setGenerationStatus('generating');
     setVideoUrl(null);
 
-    // Find the last image uploaded by user to use as reference
-    // We search reverse
-    const lastUserMsgWithImage = [...messages].reverse().find(m => m.role === 'user' && m.image);
+    // Find the last image uploaded by user to use as reference (Veo Image-to-Video)
+    // We strictly look for images, ignoring videos as Veo gen input for now
+    const lastUserMsgWithImage = [...messages].reverse().find(
+      m => m.role === 'user' && m.attachment?.type === 'image'
+    );
     
     try {
       const url = await generateVeoVideo({
         prompt,
         aspectRatio,
         resolution: '720p',
-        referenceImage: lastUserMsgWithImage?.image
+        referenceImage: lastUserMsgWithImage?.attachment?.data
       });
       setVideoUrl(url);
       setGenerationStatus('completed');
@@ -147,7 +159,11 @@ function App() {
 
   // Find the latest script in the chat history
   const latestScriptMarkdown = [...messages].reverse().find(m => m.role === 'model' && m.content.includes('# '))?.content || '';
-  const lastUserImage = [...messages].reverse().find(m => m.role === 'user' && m.image)?.image;
+  
+  // Find last image for script preview visualization
+  const lastUserImage = [...messages].reverse().find(
+    m => m.role === 'user' && m.attachment?.type === 'image'
+  )?.attachment?.data;
 
   return (
     <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
@@ -186,15 +202,21 @@ function App() {
 
           {/* Input Area */}
           <div className="p-4 border-t border-slate-800 bg-slate-900/50 backdrop-blur-sm">
-            {selectedImage && (
+            {selectedMedia && (
               <div className="mb-3 relative inline-block">
-                <img 
-                  src={`data:image/jpeg;base64,${selectedImage}`} 
-                  alt="Preview" 
-                  className="h-16 w-16 object-cover rounded-lg border border-slate-600"
-                />
+                {selectedMedia.type === 'image' ? (
+                  <img 
+                    src={`data:${selectedMedia.mimeType};base64,${selectedMedia.data}`} 
+                    alt="Preview" 
+                    className="h-16 w-16 object-cover rounded-lg border border-slate-600"
+                  />
+                ) : (
+                  <div className="h-16 w-16 rounded-lg border border-slate-600 bg-slate-800 flex items-center justify-center">
+                    <Video size={24} className="text-slate-400" />
+                  </div>
+                )}
                 <button 
-                  onClick={() => setSelectedImage(null)}
+                  onClick={() => setSelectedMedia(null)}
                   className="absolute -top-2 -right-2 bg-slate-700 rounded-full p-1 hover:bg-slate-600 text-white"
                 >
                   <span className="sr-only">Remove</span>
@@ -207,14 +229,14 @@ function App() {
               <input 
                 type="file" 
                 ref={fileInputRef} 
-                onChange={handleImageUpload} 
+                onChange={handleFileUpload} 
                 className="hidden" 
-                accept="image/*"
+                accept="image/*,video/*"
               />
               <button 
                 onClick={() => fileInputRef.current?.click()}
                 className="p-3 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl transition-all"
-                title="Upload Image"
+                title="Upload Image or Video"
               >
                 <ImageIcon size={20} />
               </button>
@@ -229,14 +251,14 @@ function App() {
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Describe your product or upload an image..."
+                  placeholder="Describe idea, upload image or video..."
                   className="w-full bg-slate-800 text-white placeholder-slate-500 rounded-xl py-3 px-4 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 border border-slate-700 resize-none h-[50px] max-h-[120px]"
                 />
                 <button 
                   onClick={handleSendMessage}
-                  disabled={isTyping || (!input.trim() && !selectedImage)}
+                  disabled={isTyping || (!input.trim() && !selectedMedia)}
                   className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all ${
-                    input.trim() || selectedImage
+                    input.trim() || selectedMedia
                       ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:scale-105'
                       : 'bg-transparent text-slate-600 cursor-not-allowed'
                   }`}

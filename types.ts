@@ -1,8 +1,15 @@
+
+export interface Attachment {
+  type: 'image' | 'video';
+  mimeType: string;
+  data: string; // Base64
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'model';
   content: string;
-  image?: string; // Base64 string
+  attachment?: Attachment;
   isStreaming?: boolean;
 }
 
