@@ -29,6 +29,20 @@ export interface VideoConfig {
   aspectRatio: VideoAspectRatio;
   resolution: VideoResolution;
   referenceImage?: string; // Base64
+  referenceImageMimeType?: string;
+}
+
+export type ImageAspectRatio = '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '9:16' | '16:9' | '21:9';
+
+export interface ImageGenConfig {
+  prompt: string;
+  aspectRatio: ImageAspectRatio;
+}
+
+export interface ImageEditConfig {
+  image: string; // Base64
+  mimeType: string;
+  prompt: string;
 }
 
 export type GenerationStatus = 'idle' | 'checking-auth' | 'generating' | 'polling' | 'completed' | 'error';

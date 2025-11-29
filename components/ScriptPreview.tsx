@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { ScriptData, VideoAspectRatio, GenerationStatus } from '../types';
-import { Play, Film, Loader2, Wand2, RefreshCcw } from 'lucide-react';
+import { ScriptData, VideoAspectRatio, GenerationStatus, Attachment } from '../types';
+import { Play, Film, Loader2, Wand2, RefreshCcw, Image as ImageIcon, X, Upload, CheckSquare, Square } from 'lucide-react';
 
 interface AutoResizingTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   value: string;
@@ -28,15 +29,28 @@ const AutoResizingTextarea: React.FC<AutoResizingTextareaProps> = ({ value, clas
 
 interface ScriptPreviewProps {
   markdown: string;
-  onGenerateVideo: (prompt: string, ratio: VideoAspectRatio) => void;
+  onGenerateVideo: (prompt: string, ratio: VideoAspectRatio, refImage?: { data: string, mimeType: string }) => void;
   status: GenerationStatus;
-  lastImage?: string;
+  lastImageAttachment?: { data: string, mimeType: string };
 }
 
-const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo, status, lastImage }) => {
+const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo, status, lastImageAttachment }) => {
   const [ratio, setRatio] = useState<VideoAspectRatio>('9:16');
   const [editableScript, setEditableScript] = useState<ScriptData | null>(null);
   const [isEdited, setIsEdited] = useState(false);
+  
+  // Reference Image State
+  const [useRefImage, setUseRefImage] = useState(true);
+  const [refImageData, setRefImageData] = useState<{data: string, mimeType: string} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync reference image from props when it changes
+  useEffect(() => {
+    if (lastImageAttachment) {
+      setRefImageData(lastImageAttachment);
+      setUseRefImage(true);
+    }
+  }, [lastImageAttachment]);
 
   // Enhanced parser to extract script sections from Markdown with better fault tolerance
   const parseScript = (md: string): ScriptData | null => {
@@ -109,6 +123,24 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
     setIsEdited(false); // This triggers the useEffect to re-sync with markdown prop
   };
 
+  const handleRefImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        const base64Data = base64String.split(',')[1];
+        setRefImageData({
+            data: base64Data,
+            mimeType: file.type
+        });
+        setUseRefImage(true);
+      };
+      reader.readAsDataURL(file);
+    }
+    event.target.value = '';
+  };
+
   const constructPrompt = () => {
     if (!editableScript) return '';
     const parts = [];
@@ -124,6 +156,13 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
     }
 
     return parts.join('. ');
+  };
+
+  const handleGenerate = () => {
+    const prompt = constructPrompt();
+    // Pass the ref image only if enabled and exists
+    const imageToUse = (useRefImage && refImageData) ? refImageData : undefined;
+    onGenerateVideo(prompt, ratio, imageToUse);
   };
 
   if (!editableScript) {
@@ -221,12 +260,73 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
           </div>
         </div>
 
-        {lastImage && (
-            <div className="mt-4 p-3 bg-slate-800/50 rounded border border-dashed border-slate-600 flex items-center gap-4">
-                <img src={`data:image/jpeg;base64,${lastImage}`} className="h-12 w-12 rounded object-cover border border-slate-600" alt="Ref" />
-                <p className="text-xs text-slate-400">Using visual reference from chat for generation.</p>
-            </div>
-        )}
+        {/* Reference Image Section */}
+        <div className="mt-6 pt-6 border-t border-slate-800">
+             <div className="flex items-center justify-between mb-3">
+                 <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-2">
+                    <ImageIcon size={14} />
+                    Visual Reference for Veo
+                 </label>
+                 {refImageData && (
+                     <button 
+                        onClick={() => setUseRefImage(!useRefImage)}
+                        className={`text-xs flex items-center gap-1 ${useRefImage ? 'text-indigo-400' : 'text-slate-500'}`}
+                     >
+                        {useRefImage ? <CheckSquare size={14} /> : <Square size={14} />}
+                        Use Image
+                     </button>
+                 )}
+             </div>
+
+             {refImageData ? (
+                 <div className={`relative p-3 bg-slate-800/50 rounded border ${useRefImage ? 'border-indigo-500/30' : 'border-slate-700 opacity-60'} flex items-start gap-4 transition-all`}>
+                     <img 
+                        src={`data:${refImageData.mimeType};base64,${refImageData.data}`} 
+                        className="h-16 w-16 rounded object-cover border border-slate-600 bg-slate-900" 
+                        alt="Ref" 
+                     />
+                     <div className="flex-1 min-w-0">
+                         <p className="text-sm text-slate-300 truncate font-medium">Reference Image Loaded</p>
+                         <p className="text-xs text-slate-500 mt-1">
+                             Veo will use this to guide video generation.
+                         </p>
+                         <div className="flex gap-3 mt-2">
+                             <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                             >
+                                 <Upload size={12} /> Replace
+                             </button>
+                             <button 
+                                onClick={() => {
+                                    setRefImageData(null);
+                                    setUseRefImage(false);
+                                }}
+                                className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1"
+                             >
+                                 <X size={12} /> Remove
+                             </button>
+                         </div>
+                     </div>
+                 </div>
+             ) : (
+                <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border border-dashed border-slate-700 rounded-lg p-4 flex flex-col items-center justify-center text-slate-500 hover:bg-slate-800/50 hover:border-slate-600 hover:text-slate-400 cursor-pointer transition-all"
+                >
+                    <Upload size={20} className="mb-2 opacity-50" />
+                    <p className="text-xs">Upload a reference image (optional)</p>
+                </div>
+             )}
+             <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleRefImageUpload} 
+                className="hidden" 
+                accept="image/*"
+             />
+        </div>
+
       </div>
 
       {/* Controls */}
@@ -256,7 +356,7 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ markdown, onGenerateVideo
           </div>
 
           <button
-            onClick={() => onGenerateVideo(constructPrompt(), ratio)}
+            onClick={handleGenerate}
             disabled={isBusy}
             className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-semibold text-sm transition-all shadow-lg ${
               isBusy 
